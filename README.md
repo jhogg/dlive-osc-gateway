@@ -16,6 +16,8 @@ information being sent to the mixer.
 
 **USE OF THIS SOFTWARE IS FOR EVALUATION PURPOSES ONLY AND AT YOUR OWN RISK**
 
+## Background on what drove the development
+
 ## Background on AH-NET Protocol
 
 ## The OSC-Like Gateway Interface
