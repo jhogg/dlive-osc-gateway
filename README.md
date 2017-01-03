@@ -33,6 +33,22 @@ information being sent to the mixer.
 
 ## Supported URI's
 ### Input
+/channel/{range}/mute=0|1
+
+/channel/{range}/fader=0..32768  (Need to sort out log scale)
+
+/channel/{range}/pan=L100->L0 | C | R0->R100
+
+/channel/{range}/dca={list of dca's}  ** exclusive
+
+/channel/{range}/mutegroup={list of mutegroups}  ** exclusive
+
+/channel/{range}/inserta=0|1
+
+/channel/{range}/insertb=0|1
+
+/channel/{range}/delay=0|1[,delay in ms.xx]
+
 ### DCA
 ### FX Return
 ### FX Send
