@@ -1,0 +1,199 @@
+
+console:
+   ip: 192.168.1.70
+
+   # Bus configuration until we get it from console
+   group_mono: 2
+   group_stereo: 2
+   fx_mono: 2
+   fx_stereo: 2
+   aux_mono: 2
+   aux_stereo: 2
+   matrix_mono: 2
+   matrix_stereo: 2
+   pafl: 2
+   main: lrm      # lr, lrm, lcr, surround5.1
+
+midi:
+   #interface: coremidi/midi_monitor_(untitled)/out
+   interface: coremidi/um-1g/out
+
+tags: [
+
+   {
+     # Only doing the first channel - they are ganged
+     class: channel,
+     index: 27,
+     name: overhead,
+     tags: [overhead]
+   },
+
+   {
+     class: matrix,
+     index: 5,
+     name: Lobby,
+     tags: [lobby]
+   },
+
+   {
+     class: matrix,
+     index: 6,
+     name: Dressing Rooms,
+     tags: [dressing rooms]
+   },
+
+   {
+     class: mix,
+     index: 16,
+     name: Sub,
+     tags: [sub]
+   },
+
+   {
+     class: channel,
+     index: 37,
+     name: Angela,
+     tags: [girls, headset]
+   },
+
+   {
+     class: channel,
+     index: 38,
+     name: Esther,
+     tags: [girls, headset]
+   },
+
+   {
+     class: channel,
+     index: 39,
+     name: Eloise,
+     tags: [girls, headset]
+   },
+
+   {
+     class: channel,
+     index: 40,
+     name: Jinney,
+     tags: [girls, headset]
+   },
+
+   {
+     class: channel,
+     index: 41,
+     name: Cynthia,
+     tags: [girls, headset]
+   },
+
+   {
+     class: channel,
+     index: 42,
+     name: Logan,
+     tags: [girls, headset]
+   },
+
+   {
+     class: channel,
+     index: 43,
+     name: Ruby,
+     tags: [girls, headset]
+   },
+
+   {
+     class: channel,
+     index: 44,
+     name: Miranda,
+     tags: [girls, headset]
+   },
+
+   {
+     class: channel,
+     index: 45,
+     name: Dannie,
+     tags: [girls, headset, 'name:dani']
+   },
+
+   {
+     class: channel,
+     index: 46,
+     name: Terence,
+     tags: [guys, headset]
+   },
+
+   {
+     class: channel,
+     index: 47,
+     name: Julian,
+     tags: [guys, headset]
+   },
+
+   {
+     class: channel,
+     index: 48,
+     name: Collin,
+     tags: [guys, headset]
+   },
+
+   {
+     class: channel,
+     index: 49,
+     name: Hunter,
+     tags: [guys, headset]
+   },
+
+   {
+     class: channel,
+     index: 50,
+     name: Josue,
+     tags: [guys, headset]
+   },
+
+   {
+     class: channel,
+     index: 51,
+     name: Conner,
+     tags: [guys, headset]
+   },
+
+   {
+     class: channel,
+     index: 52,
+     name: Chadwick,
+     tags: [guys, headset]
+   },
+
+   {
+     class: channel,
+     index: 53,
+     name: Nick,
+     tags: [guys, headset]
+   },
+
+   {
+     class: channel,
+     index: 54,
+     name: Nathan,
+     tags: [guys, headset]
+   },
+
+   {
+     class: channel,
+     index: 60,
+     name: hh1,
+     tags: [handheld]
+   },
+
+   {
+     class: channel,
+     index: 61,
+     name: hh2,
+     tags: [handheld]
+   },
+
+   {
+     class: channel,
+     index: 62,
+     name: hh3,
+     tags: [handheld]
+   },
+
+]
