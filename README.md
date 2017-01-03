@@ -34,6 +34,12 @@ information being sent to the mixer.
 ## Supported URI's
 ### Input
 ### DCA
+### FX Return
+### FX Send
+### Group & Stereo Group
+### Aux & Stereo Aux
+### Main
+### Matrix & Stereo Matrix
 ### MuteGroup
 
 (c) 2016, Jay Hogg.  All rights reserved.
