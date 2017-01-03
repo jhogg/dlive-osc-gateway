@@ -1,0 +1,29 @@
+dLive qLab Gatway TODO List
+
+This list is not in any priority order and depends on, ultimately, having access to a MixRack
+to do both the research and testing since the protocol is undocumented.
+
+* Work out the log10 formula for fader settings in dB
+* Implement front/rear pan for 5.1
+* Implement level/mute on sends for input & fx returns
+* Implement lfe/enable on main for input & mixes
+
+General:
+
+* Config file & debug levels from command line
+
+To be worked out from protocols:
+
+* Implement support for async-received messages to update states (fader/levels primarily)
+* Implement pull for channel/mix names
+* Implement pull for fader/level & other initial state
+* Find stereo ganging info
+* Do we need to subscribe to any of the UDP data or does it all state info show up in TCP async notifications?
+* Implement relative changes for fader/level (need dB log scale & read current level first)
+* Find/implement FX control
+
+
+FIXME:
+
+* /channel/*/insert[a|b] work for mono channels, they need to enable/disable both channels for stereo pairs
+
