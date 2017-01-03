@@ -11,8 +11,8 @@ fully unsupported and may cause problems:
 * You may cause hearing damage;
 * You may cause individual hearing damage to IEM users.
 
-The AH-NET protocol does not implement any security or data validation, which can result in invalid
-information being sent to the mixer.  
+The AH-NET protocol does not implement any security and minimal data validation, which can result in invalid
+information being sent to the mix rack.  
 
 **USE OF THIS SOFTWARE IS FOR EVALUATION PURPOSES ONLY AND AT YOUR OWN RISK**
 
