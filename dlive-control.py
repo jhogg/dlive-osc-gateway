@@ -228,6 +228,57 @@ class dLive_GenericDevice(object):
   
         return sysex
 
+    def calc_db(self, **kw):
+        """ Convert db to linear based on straight line calcs
+           -oo = 0
+        -128db = 1
+           0db = 0x8000
+        """
+
+        factor = (128.0 / 0x8000)
+
+        # --- Starting Point
+
+        if 'linear' in kw:
+            linear = kw.get('linear')
+            if linear != None:
+                if linear == 0:
+                    db = None
+                else:
+                    db = (linear * factor) - 128.0
+        else:
+            db = kw.get('db_abs', None)
+
+        print "Starting db", db
+
+        # --- Handle relative adjustment
+        if 'db_rel' in kw:
+            db_rel = kw.get('db_rel')
+            if (db == None):
+                db = -128.0
+            db += db_rel
+
+        print "After rel", db
+
+        # --- Enforce Limits
+
+        if 'limit_lower' in kw:
+            value = kw.get('limit_lower')
+            db = max([-129.0, value, db])
+
+        if 'limit_upper' in kw:
+            value = kw.get('limit_upper')
+            db = min([10.0, value, db])
+
+        # --- Convert db back to linear
+
+        if db < -128.0:
+            linear = None
+        else:
+            linear = int((db + 128.0) / factor)
+
+        return (db, linear)
+
 class dLive_Input(dLive_GenericDevice):
     """Input Channel Control
        Implements:
@@ -263,8 +314,9 @@ class dLive_Input(dLive_GenericDevice):
     def fader(self, channel, data, **kw):
         """Set fader level.  Currently does NOT support db or relative"""
         self._check_range('input', channel)
-        value = int(data[0])
+        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)
         self._console.queue_command(self.sysex_send(0x0001, 0x001b, 0x001a, 0x3000 + channel-1, [value/256, value%256]))
+
 
     def balance(self, channel, data, **kw):
         self.pan(channel, data, **kw)
@@ -356,9 +408,11 @@ class dLive_FXReturn(dLive_GenericDevice):
         self._console.queue_command(self.sysex_send(0x0002, 0x001c, 0x001b, 0x1860 + (channel-1)*2, [value]))
 
     # fader - need to sort out log scale for console
+    # data = abs[[,rel],upper limit]
+
     def fader(self, channel, data, **kw):
         self._check_range('fxreturn', channel)
-        value = int(data[0])
+        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)
         self._console.queue_command(self.sysex_send(0x0002, 0x001c, 0x001b, 0x1800 + (channel-1)*2, [value/256, value%256]))
  
     def balance(self, channel, data, **kw):
@@ -392,7 +446,7 @@ class dLive_DCA(dLive_GenericDevice):
     # fader - need to sort out log scale for console
     def fader(self, dca, data, **kw):
         self._check_range('dca', dca)
-        value = int(data[0])
+        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)
         self._console.queue_command(self.sysex_send(0x0001, 0x0019, 0x0018, 0x1000 + dca-1, [value/256, value%256]))
  
     def assign(self, dca, data, **kw):
@@ -424,7 +478,7 @@ class dLive_FXSend(dLive_GenericDevice):
     # fader - need to sort out log scale for console
     def fader(self, channel, data, **kw):
         self._check_range('fxsend', channel)
-        value = int(data[0])
+        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)
         self._console.queue_command(self.sysex_send(0x0002, 0x001d, 0x001c, 0x1000 + channel-1, [value/256, value%256]))
  
 class dLive_Mix(dLive_GenericDevice):
@@ -441,7 +495,7 @@ class dLive_Mix(dLive_GenericDevice):
     # fader - need to sort out log scale for console
     def fader(self, channel, data, **kw):
         offset, channelct = self._console._mixmap[ (self._device, channel) ]
-        value = int(data[0])
+        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)
         self._console.queue_command(self.sysex_send(0x0002, 0x001e, 0x001d, 0x2000 + offset, [value/256, value%256]))
 
     # pan/balance depending on type

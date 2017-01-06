@@ -37,13 +37,13 @@ information being sent to the mix rack.
 | URI | Values | Notes |
 | ----- | ----- | ------------ |
 | /input/{range}/mute | 0,1 |  Mutes or unmutes a channel
-| /input/{range}/fader | 0..32768 | Need to sort out log scale
+| /input/{range}/fader | -128.0db to 10.0db | Absolute position of fader
 | /input/{range}/pan | L100->L0, C, R0->R100
 | /input/{range}/dca | {list of dca's} | Exclusively assigns channel to designated DCA's.  Adds new before removing old.
 | /input/{range}/mutegroup | {list of mutegroups 1-8} | Exclusively assigns channel to designated mute groups. Adds new before removing old.
 | /input/{range}/inserta | 0,1 | Bypass or enable Insert A
 | /input/{range}/insertb | 0,1 | Bypass or enable Insert B
-| /input/{range}/delay | 0,1 | Delay in ms  xx.xx
+| /input/{range}/delay | enable[,delay] | Enable is 0,1 with optional delay in ms  xx.xx
 | /input/{range}/send/... | | Not Implemented
 
 
@@ -51,7 +51,7 @@ information being sent to the mix rack.
 | URI | Values | Notes |
 | ----- | ----- | ------------ |
 | /dca/{range}/mute | 0,1 |  Mutes or unmutes a channel
-| /dca/{range}/fader | 0..32768 | Need to sort out log scale
+| /dca/{range}/fader | -128.0db to 10.0db | Absolute position of fader
 | /dca/{range}/assign/input/{range} | 0,1 |
 
 
@@ -59,7 +59,7 @@ information being sent to the mix rack.
 | URI | Values | Notes |
 | ----- | ----- | ------------ |
 | /fxret/{range}/mute | 0,1 |  Mutes or unmutes a channel
-| /fxret/{range}/fader | 0..32768 | Need to sort out log scale
+| /fxret/{range}/fader | -128.0db to 10.0db | Absolute position of fader
 | /fxret/{range}/pan | L100->L0, C, R0->R100
 | /fxret/{range}/send/... | | Not Implemented
 
@@ -67,13 +67,13 @@ information being sent to the mix rack.
 | URI | Values | Notes |
 | ----- | ----- | ------------ |
 | /fxsend/{range}/mute | 0,1 |  Mutes or unmutes a channel
-| /fxsend/{range}/fader | 0..32768 | Need to sort out log scale
+| /fxsend/{range}/fader | -128.0db to 10.0db | Absolute position of fader
 
 ### Group & Stereo Group
 | URI | Values | Notes |
 | ----- | ----- | ------------ |
 | /[st]group/{range}/mute | 0,1 |  Mutes or unmutes a channel
-| /[st]group/{range}/fader | 0..32768 | Need to sort out log scale
+| /[st]group/{range}/fader | -128.0db to 10.0db | Absolute position of fader
 | /[st]group/{range}/pan | | Not Implemented
 | /[st]group/{range}/delay | | Not Implemented
 | /[st]group/{range}/send/... | | Not Implemented
@@ -82,7 +82,7 @@ information being sent to the mix rack.
 | URI | Values | Notes |
 | ----- | ----- | ------------ |
 | /[st]aux/{range}/mute | 0,1 |  Mutes or unmutes a channel
-| /[st]aux/{range}/fader | 0..32768 | Need to sort out log scale
+| /[st]aux/{range}/fader | -128.0db to 10.0db | Absolute position of fader
 | /[st]aux/{range}/pan | | Not Implemented
 | /[st]aux/{range}/delay | | Not Implemented
 | /[st]aux/{range}/send/... | | Not Implemented
@@ -99,7 +99,7 @@ information being sent to the mix rack.
 | URI | Values | Notes |
 | ----- | ----- | ------------ |
 | /main/{range}/mute | 0,1 |  Mutes or unmutes a channel
-| /main/{range}/fader | 0..32768 | Need to sort out log scale
+| /main/{range}/fader | -128.0db to 10.0db | Absolute position of fader
 | /main/{range}/pan | | Not Implemented
 | /main/{range}/delay | | Not Implemented
 | /main/{range}/send/... | | Not Implemented
@@ -108,7 +108,7 @@ information being sent to the mix rack.
 | URI | Values | Notes |
 | ----- | ----- | ------------ |
 | /[st]matrix/{range}/mute | 0,1 |  Mutes or unmutes a matrix
-| /[st]matrix/{range}/fader | 0..32768 | Need to sort out log scale
+| /[st]matrix/{range}/fader | -128.0db to 10.0db | Absolute position of fader
 | /[st]matrix/{range}/pan | | Not Implemented
 | /[st]matrix/{range}/delay | | Not Implemented
 
