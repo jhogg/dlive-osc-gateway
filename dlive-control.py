@@ -314,7 +314,7 @@ class dLive_Input(dLive_GenericDevice):
     def fader(self, channel, data, **kw):
         """Set fader level.  Currently does NOT support db or relative"""
         self._check_range('input', channel)
-        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)
+        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)[1]
         self._console.queue_command(self.sysex_send(0x0001, 0x001b, 0x001a, 0x3000 + channel-1, [value/256, value%256]))
 
 
@@ -412,7 +412,7 @@ class dLive_FXReturn(dLive_GenericDevice):
 
     def fader(self, channel, data, **kw):
         self._check_range('fxreturn', channel)
-        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)
+        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)[1]
         self._console.queue_command(self.sysex_send(0x0002, 0x001c, 0x001b, 0x1800 + (channel-1)*2, [value/256, value%256]))
  
     def balance(self, channel, data, **kw):
@@ -446,7 +446,7 @@ class dLive_DCA(dLive_GenericDevice):
     # fader - need to sort out log scale for console
     def fader(self, dca, data, **kw):
         self._check_range('dca', dca)
-        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)
+        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)[1]
         self._console.queue_command(self.sysex_send(0x0001, 0x0019, 0x0018, 0x1000 + dca-1, [value/256, value%256]))
  
     def assign(self, dca, data, **kw):
@@ -478,7 +478,7 @@ class dLive_FXSend(dLive_GenericDevice):
     # fader - need to sort out log scale for console
     def fader(self, channel, data, **kw):
         self._check_range('fxsend', channel)
-        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)
+        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)[1]
         self._console.queue_command(self.sysex_send(0x0002, 0x001d, 0x001c, 0x1000 + channel-1, [value/256, value%256]))
  
 class dLive_Mix(dLive_GenericDevice):
@@ -495,7 +495,7 @@ class dLive_Mix(dLive_GenericDevice):
     # fader - need to sort out log scale for console
     def fader(self, channel, data, **kw):
         offset, channelct = self._console._mixmap[ (self._device, channel) ]
-        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)
+        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)[1]
         self._console.queue_command(self.sysex_send(0x0002, 0x001e, 0x001d, 0x2000 + offset, [value/256, value%256]))
 
     # pan/balance depending on type
