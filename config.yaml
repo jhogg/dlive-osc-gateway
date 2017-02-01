@@ -1,22 +1,40 @@
+# Config file for OSC Gateway
+#
+# TODO:
+# - Need to split tags (show specific) from base configuration (console/system)
+#
+
+gateway:
+    port: 55000
+    bind: '*'
+
 
 console:
-   ip: 192.168.1.70
+    
+    class: ah-dlive
+    #ip: 192.168.1.70
+    ip: 172.30.1.70
 
-   # Bus configuration until we get it from console
-   group_mono: 2
-   group_stereo: 2
-   fx_mono: 2
-   fx_stereo: 2
-   aux_mono: 2
-   aux_stereo: 2
-   matrix_mono: 2
-   matrix_stereo: 2
-   pafl: 2
-   main: lrm      # lr, lrm, lcr, surround5.1
+    pafl: 1     # Default PAFL bus if none specified
 
-midi:
-   #interface: coremidi/midi_monitor_(untitled)/out
-   interface: coremidi/um-1g/out
+    # Bus configuration until we get it from console
+    console_data:
+      #version_string: 'V1.30 - Rev. 27648'
+      version_string: 'V1.40 - Rev. 30551'
+      group_mono: 0
+      group_stereo: 0
+      fx_mono: 0
+      fx_stereo: 4
+      aux_mono: 10
+      aux_stereo: 0
+      matrix_mono: 2
+      matrix_stereo: 2
+      pafl: 2
+      main: lr      # lr, lrm, lcr, surround5.1
+
+#        0x0040:  368a f000 1451 3800 0400 0200 1256 312e  6....Q8......V1.
+#        0x0050:  3330 202d 2052 6576 2e20 3237 3634 38f7  30.-.Rev..27648.
+
 
 tags: [
 

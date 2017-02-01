@@ -1,30 +1,15 @@
 #!/usr/bin/python
 #
-# AHNet dLive test Interface
-#
-#
-# Namespace Map for Sysex/NRPN
-#
-# f0 0001 001b 001a (Input Channels)
-#
-#   3000 -> 307f 01 02 Ch 001..128 Fader
-#   3080 -> 30ff 01 01 Ch 001..128 Main Out on/off
-#   3100 -> 31ff (unknown)
-#   3180 -> 31ff 01 01 Ch 001..128 Mute
-#   3200 -> 327f 01 01 Ch 001..128 Pan/Balance L/R 00..4a
-#   3280 -> 32ff 01 01 Ch 001..128 Pan F/R 00..4a
-#   (missing)
-#   3d00 -> ???? PAFL control @ 0x0a offsets
-#   5a00 -> 79ff 40 01 Ch 001..128 Mix on/off for 64 mixes each
-#   7a00 -> 99ff 40 01 Ch 001..128 Mix aux pre/post for 63 mixes each
-#   (missing)
-#   da00 -> e9ff 20 01 Ch 001..128 DCA Assigns for 24 DCA's (offset 32)
-#                          00..23 = DCA Assigns (1..24)
-#                          24..31 = Mute Group Assigns (1..8)  
 #
 
-import sys, time, socket
+import sys, time, socket, traceback
 import yaml
+
+from lib.consoles.allenheath.dlive.ah_dlive import *
+from lib.consoles.allenheath.dlive.util import *            # TEMPORARY - calc_db
+
+VERSION = "0.20"
+COPYRIGHT = "(c) 2016, 2017, 2ImagineIt Productions, LLC"
 
 class BadUri(Exception):
     def __init__(self, uri, msg = ''):
@@ -36,144 +21,42 @@ class DataObject(object): pass
         
 # ---------------------------------------------------------------------------------------
 
-class dLive_Console(object):
+class UDP_Gateway(object):
     
-    def __init__(self, config = {}):
+    def __init__(self, config, console):
 
-        self._config = config        
+        self._config = config
+        self._console = console
+
+        # FIXME: Console needs to provide a mapping of what it has to Gateway implementation
+
         self._route = {}
-        self._route['input']                = dLive_Input(self)
-        #self._route['input/*/rawmix']      = dLive_InputMix(self)
-        self._route['dca']                  = dLive_DCA(self)
-        self._route['fxret']                = dLive_FXReturn(self)
-        self._route['fxsend']               = dLive_FXSend(self)
-        self._route['group']                = dLive_Mix(self, 'group')
-        self._route['stgroup']              = dLive_Mix(self, 'stgroup')
-        self._route['aux']                  = dLive_Mix(self, 'aux')
-        self._route['staux']                = dLive_Mix(self, 'staux')
-        self._route['main']                 = dLive_Mix(self, 'main')
-        self._route['matrix']               = dLive_Mix(self, 'matrix')
-        self._route['stmatrix']             = dLive_Mix(self, 'stmatrix')
-        self._route['mutegroup']            = dLive_MuteGroup(self)
+        self._route['input']                = UDP_Input(console)
+        self._route['dca']                  = UDP_DCA(console)
+        self._route['fxret']                = UDP_FXReturn(console)
+        self._route['fxsend']               = UDP_FXSend(console)
+        self._route['group']                = UDP_Mix(console, 'group')
+        self._route['stgroup']              = UDP_Mix(console, 'stgroup')
+        self._route['aux']                  = UDP_Mix(console, 'aux')
+        self._route['staux']                = UDP_Mix(console, 'staux')
+        self._route['main']                 = UDP_Mix(console, 'main')
+        self._route['matrix']               = UDP_Mix(console, 'matrix')
+        self._route['stmatrix']             = UDP_Mix(console, 'stmatrix')
+        self._route['mutegroup']            = UDP_MuteGroup(console)
 
-        #self._route['mix']     = LS9_Mix(self)
-        #self._route['matrix']  = LS9_Matrix(self)
-    
         print self._route
-
-        self._data = []
-    
-        self._build_mixmap()
-
-        self._range = dict(
-            input           = 128, 
-            dca             =  24, 
-            mutegroup       =   8,
-            fxreturn        =  16,
-            fxsend          =  16,
-            )
 
         self._open()
 
-    def _build_mixmap(self):
-
-        # ... FIXME: Need to add pan/balance/delay capabilities into build matrix
-
-        # Order matters here - this is the order the DMxx assigns mix buses
-        # Note some busses are burned in LRM/LCR modes
-        build = [
-            ( 'group_mono'      , 'group'       , 1, 0),
-            ( 'group_stereo'    , 'stgroup'     , 2, 0),
-            ( 'fx_mono'         , '*fx'         , 1, 0),   # In the mixmap, managed via different NRPN interface
-            ( 'aux_mono'        , 'aux'         , 1, 0), 
-            ( 'fx_stereo'       , '*stfx'       , 2, 0),   # In the mixmap, managed via different NRPN interface
-            ( 'aux_stereo'      , 'staux'       , 2, 0),
-            ( '*main'           , '*main'       , 0, 0),
-            ( 'pafl'            , '*pafl'       , 2, 1),
-            ( 'matrix_mono'     , 'matrix'      , 1, 0),
-            ( 'matrix_stereo'   , 'stmatrix'    , 2, 0),
-        ]
-
-        config = self._config
-
-        self._mixmap = mixmap = {}
-        offset = 0x00
-        for key, name, channels, minval in build:
-            if key == '*main':
-                main = config.get('main', 'lr').lower()
-                print main
-                mixmap[ ( 'main', 1) ] = (offset, 2)
-                offset += 0x0002
-                if main in ['lr']:
-                    pass
-                elif main in ['lrm']:
-                    mixmap[ ( 'main', 2 ) ] = (offset, 1)
-                    mixmap[ ( 'main', '*burn' ) ] = (offset + 0x0001, 1)
-                    offset += 0x0002   # Burn odd mix
-                elif main in ['lcm']:
-                    mixmap[ ( 'main', 2 ) ] = (offset, 1)
-                    mixmap[ ( 'main', '*burn' ) ] = (offset + 0x0001, 1)
-                    offset += 0x0002   # Burn odd mix
-                elif main in ['surround5.1']:
-                    mixmap[ ( 'main', 2 ) ]   = (offset, 1)
-                    mixmap[ ( 'main', 3 ) ] = (offset + 0x0001, 1)
-                    mixmap[ ( 'main', 4 ) ] = (offset + 0x0002, 2)
-                    offset += 0x0004
-                else:
-                    raise BadMode()
-            else:
-                count = max(config.get(key, minval), minval)
-                for idx in range(0, count):
-                    mixmap[ (name, idx+1) ] = (offset, channels)
-                    offset += channels
-
-        tosort = [ (v,k) for k,v in mixmap.iteritems()]
-        tosort.sort()
-        for p in tosort:
-            print "0x%04x/%i = %s" % (p[0][0], p[0][1], p[1])
 
     def _open(self):
-        target_ip = self._config.get('ip')
-        target_port = self._config.get('port', 51321)
-        self._socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._socket.connect( (target_ip, target_port) )
-        self._socket.setblocking(0)
+        # ... this needs to be GATEWAY open
+        pass
 
     def close(self):
-        # ... send BYE
-        print "dLive_Console.close()"
+        # ... this needs to be GATEWAY close
+        pass
 
-        self._send([ 0xe0, 0x00, 0x03, 0x42, 0x59, 0x45, 0xe7 ])   # BYE
-        time.sleep(1.0)
-        self._socket.close()
-
-    def _send(self, data):
-        print "Sending: ", data
-        data_str = ''.join([chr(ch) for ch in data])
-        self._socket.send(data_str)
-        
-        # Dummy non-blocking receive
-        try:
-            self._socket.recv(4096) 
-        except Exception, e:
-            #print e
-            pass
-
-    def flush(self):
-        
-        while True:
-            try:
-                cmd = self._data.pop(0)
-                self._send(cmd)
-            except IndexError, e:
-                break
-
-    def queue_command(self, data):
-        # ... Need to implement scheduled sends
-        fmt_data = ' '.join('%02x' % i for i in data)
-        print "Queue data: [ %s ]" % (fmt_data)
-        self._data.append(data)
-    
     def handle_message(self, uri, data = None):
         
         uri_text = '/' + '/'.join(uri)
@@ -194,13 +77,10 @@ class dLive_Console(object):
                 raise BadUri(uri_text, 'Unknown Method %s' % uri[2])
 
         except Exception, e:
-            print e
+            print traceback.format_exc()
 
-class dLive_GenericDevice(object):
-    
-    def _check_index(self, idx):
-        if (idx < 1) or (idx > self._max_index):
-            raise IndexOutOfRange()
+
+class UDP_GenericDevice(object):
     
     def _check_range(self, klass, idx):
         idx = int(idx)
@@ -228,58 +108,14 @@ class dLive_GenericDevice(object):
   
         return sysex
 
-    def calc_db(self, **kw):
-        """ Convert db to linear based on straight line calcs
-           -oo = 0
-        -128db = 1
-           0db = 0x8000
-        """
+    
+# =============================================================================
+#
+# Input Channel
+#
+# =============================================================================
 
-        factor = (128.0 / 0x8000)
-
-        # --- Starting Point
-
-        if 'linear' in kw:
-            linear = kw.get('linear')
-            if linear != None:
-                if linear == 0:
-                    db = None
-                else:
-                    db = (linear * factor) - 128.0
-        else:
-            db = kw.get('db_abs', None)
-
-        print "Starting db", db
-
-        # --- Handle relative adjustment
-        if 'db_rel' in kw:
-            db_rel = kw.get('db_rel')
-            if (db == None):
-                db = -128.0
-            db += db_rel
-
-        print "After rel", db
-
-        # --- Enforce Limits
-
-        if 'limit_lower' in kw:
-            value = kw.get('limit_lower')
-            db = max([-129.0, value, db])
-
-        if 'limit_upper' in kw:
-            value = kw.get('limit_upper')
-            db = min([10.0, value, db])
-
-        # --- Convert db back to linear
-
-        if db < -128.0:
-            linear = None
-        else:
-            linear = int((db + 128.0) / factor)
-
-        return (db, linear)
-
-class dLive_Input(dLive_GenericDevice):
+class UDP_Input(UDP_GenericDevice):
     """Input Channel Control
        Implements:
           mute, fader, balance/pan
@@ -288,7 +124,7 @@ class dLive_Input(dLive_GenericDevice):
           inserta bypass, insertb bypass
           Delay (enable, duration)
        Needs:
-          front/back
+          front/back pan
           main controls (send mute, lfe)
           mix sends (mfx, stfx, maux, staux, msubgroup, stsubgroup
           PEQ
@@ -296,42 +132,39 @@ class dLive_Input(dLive_GenericDevice):
           Trim control
           HA (gain, 48V, model)
           Comp + models
-          Gate 
+          Gate + models
           PAFL
           Source input patch
     """
     
     def __init__(self, console):
         self._console = console
-        
+ 
     def mute(self, channel, data, **kw):
         """Enable or disable channel mute"""
-        self._check_range('input', channel)
-        value = 0x01 if data[0] == '1' else 0x00
-        self._console.queue_command(self.sysex_send(0x0001, 0x001b, 0x001a, 0x3180 + channel-1, [value]))
+        self._console.get('input', channel).mute(True if data[0] == '1' else False)
 
-    # fader - need to sort out log scale for console
     def fader(self, channel, data, **kw):
         """Set fader level.  Currently does NOT support db or relative"""
-        self._check_range('input', channel)
-        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)[1]
-        self._console.queue_command(self.sysex_send(0x0001, 0x001b, 0x001a, 0x3000 + channel-1, [value/256, value%256]))
+        self._console.get('input', channel).fader_abs(float(data[0]))
 
+    def xfader_rel(self, channel, data, **kw):  # TEST
+        """Set fader level.  Currently does NOT support db or relative"""
+        self._console.get('input', channel).fader_rel(float(data[0]))
 
     def balance(self, channel, data, **kw):
         self.pan(channel, data, **kw)
         
     def pan(self, channel, data, **kw):
         """Set pan from L100 to C to R100. Does not support relative change."""
-        self._check_range('input', channel)
         cmd = data[0].lower()
         if cmd[0] in ['l', 'c', 'r']:
-            value = 37  # Center
+            value = 0  # Center
             if cmd[0] == 'l':
-                value = value - (37 * min(int(cmd[1:]), 100)) / 100
+                value = -int(cmd[1:])
             elif cmd[0] == 'r':
-                value = value + (37 * min(int(cmd[1:]), 100)) / 100
-            self._console.queue_command(self.sysex_send(0x0001, 0x001b, 0x001a, 0x3200 + channel-1, [0x00, value]))
+                value = int(cmd[1:])
+            self._console.get('input', channel).pan(value)
         else:
             print "Bad value: ", cmd
 
@@ -339,55 +172,51 @@ class dLive_Input(dLive_GenericDevice):
         """Assign a channel to DCA's (and unassign from others)
            /input/{channel}/dca=[exclusive list of DCA's]
         """
-        self._check_range('input', channel)
-        addr3 = 0xda00 + 0x20 * (channel-1)
-        dcas = [int(i) for i in data]
-        for dca in dcas: # Add DCA's first
-            self._console.queue_command(self.sysex_send(0x0001, 0x001b, 0x001a, addr3 + (dca-1), [0x01]))
-        for dca in range(1,25):
-            if dca not in dcas:
-               self._console.queue_command(self.sysex_send(0x0001, 0x001b, 0x001a, addr3 + (dca-1), [0x00]))
+        self._console.get('input', channel).dca_assign([int(i) for i in data], exclusive=True)
 
     def mutegroup(self, channel, data, **kw):
         """Assign a channel to mute groups (and unassign from others)"""
-        self._check_range('input', channel)
-        addr3 = 0xda18 + 0x20 * (channel-1)
-        mutegroups = [int(i) for i in data]
-        for idx in mutegroups: # Add MG's first
-            self._console.queue_command(self.sysex_send(0x0001, 0x001b, 0x001a, addr3 + (idx-1), [0x01]))
-        for idx in range(1,9):
-            if idx not in mutegroups:
-               self._console.queue_command(self.sysex_send(0x0001, 0x001b, 0x001a, addr3 + (idx-1), [0x00]))
+        self._console.get('input', channel).mutegroup_assign([int(i) for i in data], exclusive=True)
 
     def inserta(self, channel, data, **kw):
         """Enable or bypass Insert A"""
-        self._check_range('input', channel)
-        value = 0x00 if data[0] == '1' else 0x01
-        addr1 = 0x010c + (0x10 * (channel-1))
-        self._console.queue_command(self.sysex_send(0x0001, addr1, addr1-1, 0x1001, [value]))
+        self._console.get('input', channel).inserta_bypass(False if data[0] == '1' else True)
 
     def insertb(self, channel, data, **kw):
         """Enable or bypass Insert B"""
-        self._check_range('input', channel)
-        value = 0x00 if data[0] == '1' else 0x01
-        addr1 = 0x010d + (0x10 * (channel-1))
-        self._console.queue_command(self.sysex_send(0x0001, addr1, addr1-1, 0x1001, [value]))
+        self._console.get('input', channel).insertb_bypass(False if data[0] == '1' else True)
 
     def delay(self, channel, data, **kw):
         """ Set delay
             /input/{}/delay=[0|1, ms]
         """
-        self._check_range('input', channel)
-        addr1 = 0x0111 + 0x10 * (channel-1)
-        enable = 0x00 if data[0] == '1' else 0x01
-        self._console.queue_command(self.sysex_send(0x0002, addr1, addr1-1, 0x1001, [enable]))
+        enable = True if data[0] == '1' else False
+        duration = None
 
         if len(data) == 2:
-            delay = int(float(data[1]) * 0x60)   # 60h per ms   FIXME: Always rounds down
-            self._console.queue_command(self.sysex_send(0x0002, addr1, addr1-1, 0x1000, [delay/256, delay%256]))
+            duration = float(data[1])
 
+        self._console.get('input', channel).delay(enable, duration)
 
-class dLive_FXReturn(dLive_GenericDevice):
+    def pafl(self, channel, data, **kw):
+        """ Enable PAFL
+            /input/{}/pafl=0|1[,PAFL Bus]
+        """
+        enable = True if data[0] == '1' else False
+        bus = None
+
+        if len(data) == 2:
+            bus = int(data[1])
+
+        self._console.get('input', channel).pafl(enable, bus)
+
+# =============================================================================
+#
+# FX Return Channel 
+#
+# =============================================================================
+
+class UDP_FXReturn(UDP_GenericDevice):
     """FX Return Channel Control - Inputs with less capabilities
        Implements:
           mute, fader, balance/pan
@@ -403,52 +232,69 @@ class dLive_FXReturn(dLive_GenericDevice):
         self._console = console
         
     def mute(self, channel, data, **kw):
-        self._check_range('fxreturn', channel)
-        value = 0x01 if data[0] == '1' else 0x00
-        self._console.queue_command(self.sysex_send(0x0002, 0x001c, 0x001b, 0x1860 + (channel-1)*2, [value]))
-
-    # fader - need to sort out log scale for console
-    # data = abs[[,rel],upper limit]
+        """Enable or disable channel mute"""
+        self._console.get('fxreturn', channel).mute(True if data[0] == '1' else False)
 
     def fader(self, channel, data, **kw):
-        self._check_range('fxreturn', channel)
-        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)[1]
-        self._console.queue_command(self.sysex_send(0x0002, 0x001c, 0x001b, 0x1800 + (channel-1)*2, [value/256, value%256]))
- 
+        """Set fader level.  Currently does NOT support db or relative"""
+        self._console.get('fxreturn', channel).fader_abs(float(data[0]))
+
+    def xfader_rel(self, channel, data, **kw):  # TEST
+        """Set fader level.  Currently does NOT support db or relative"""
+        self._console.get('fxreturn', channel).fader_rel(float(data[0]))
+
     def balance(self, channel, data, **kw):
         self.pan(channel, data, **kw)
 
     def pan(self, channel, data, **kw):
         """Set pan from L100 to C to R100. Does not support relative change."""
-        self._check_range('fxreturn', channel)
         cmd = data[0].lower()
         if cmd[0] in ['l', 'c', 'r']:
-            value = 37  # Center
+            value = 0  # Center
             if cmd[0] == 'l':
-                value = value - (37 * min(int(cmd[1:]), 100)) / 100
+                value = -int(cmd[1:])
             elif cmd[0] == 'r':
-                value = value + (37 * min(int(cmd[1:]), 100)) / 100
-            self._console.queue_command(self.sysex_send(0x0002, 0x001c, 0x001b, 0x1880 + (channel-1)*2, [0x00, value]))
+                value = int(cmd[1:])
+            self._console.get('fxreturn', channel).pan(value)
         else:
             print "Bad value: ", cmd
 
-class dLive_DCA(dLive_GenericDevice):
+# =============================================================================
+#
+# DCA Channel 
+#
+# =============================================================================
+
+class UDP_DCA(UDP_GenericDevice):
     """ Implement NRPN Channel Control"""
     
     def __init__(self, console):
         self._console = console
         
-    def mute(self, dca, data, **kw):
-        self._check_range('dca', dca)
-        value = 0x01 if data[0] == '1' else 0x00
-        self._console.queue_command(self.sysex_send(0x0001, 0x0019, 0x0018, 0x1020 + dca-1, [value]))
+    def mute(self, channel, data, **kw):
+        """Enable or disable channel mute"""
+        self._console.get('dca', channel).mute(True if data[0] == '1' else False)
 
-    # fader - need to sort out log scale for console
-    def fader(self, dca, data, **kw):
-        self._check_range('dca', dca)
-        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)[1]
-        self._console.queue_command(self.sysex_send(0x0001, 0x0019, 0x0018, 0x1000 + dca-1, [value/256, value%256]))
- 
+    def fader(self, channel, data, **kw):
+        """Set fader level.  Currently does NOT support db or relative"""
+        self._console.get('dca', channel).fader_abs(float(data[0]))
+
+    def xfader_rel(self, channel, data, **kw):  # TEST
+        """Set fader level.  Currently does NOT support db or relative"""
+        self._console.get('dca', channel).fader_rel(float(data[0]))
+
+    def pafl(self, channel, data, **kw):
+        """ Enable PAFL
+            /dca/{}/pafl=0|1[,PAFL Bus]
+        """
+        enable = True if data[0] == '1' else False
+        bus = None
+
+        if len(data) == 2:
+            bus = int(data[1])
+
+        self._console.get('dca', channel).pafl(enable, bus)
+
     def assign(self, dca, data, **kw):
         """Non-exclsive assignment of DCA's
            /dca/X/assign/input/[X] = 1|0
@@ -459,49 +305,72 @@ class dLive_DCA(dLive_GenericDevice):
         value = 0x01 if data[0] == '1' else 0x00
 
         if uri[3] == 'input':
-            input = self._check_range('input', uri[4])
-            addr3 = 0xda00 + 0x20 * (input-1)
-            self._console.queue_command(self.sysex_send(0x0001, 0x001b, 0x001a, addr3 + (dca-1), [value]))
+            channel = int(uri[4])
+            if value:
+                self._console.get('input', channel).dca_assign([dca])
+            else:
+                self._console.get('input', channel).dca_remove([dca])
         else:
             raise BadUri('/dca/{}/assign/* only support input currently')
 
-class dLive_FXSend(dLive_GenericDevice):
+# =============================================================================
+#
+# FX Send Channel 
+#
+# =============================================================================
+
+class UDP_FXSend(UDP_GenericDevice):
 
     def __init__(self, console):
         self._console = console
 
     def mute(self, channel, data, **kw):
-        self._check_range('fxsend', channel)
-        value = 0x01 if data[0] == '1' else 0x00
-        self._console.queue_command(self.sysex_send(0x0002, 0x001d, 0x001c, 0x1010 + channel-1, [value]))
+        """Enable or disable channel mute"""
+        self._console.get('fxsend', channel).mute(True if data[0] == '1' else False)
 
-    # fader - need to sort out log scale for console
     def fader(self, channel, data, **kw):
-        self._check_range('fxsend', channel)
-        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)[1]
-        self._console.queue_command(self.sysex_send(0x0002, 0x001d, 0x001c, 0x1000 + channel-1, [value/256, value%256]))
- 
-class dLive_Mix(dLive_GenericDevice):
+        """Set fader level.  Currently does NOT support db or relative"""
+        self._console.get('fxsend', channel).fader_abs(float(data[0]))
+
+    def xfader_rel(self, channel, data, **kw):  # TEST
+        """Set fader level.  Currently does NOT support db or relative"""
+        self._console.get('fxsend', channel).fader_rel(float(data[0]))
+
+
+# =============================================================================
+#
+# Mix (Group, Aux, Main, Matrix) 
+#
+# =============================================================================
+
+class UDP_Mix(UDP_GenericDevice):
 
     def __init__(self, console, device):
         self._console = console
         self._device  = device
 
     def mute(self, channel, data, **kw):
-        offset, channelct = self._console._mixmap[ (self._device, channel) ]
-        value = 0x01 if data[0] == '1' else 0x00
-        self._console.queue_command(self.sysex_send(0x0002, 0x001e, 0x001d, 0x2040 + offset, [value]))
+        """Enable or disable channel mute"""
+        self._console.get(self._device, channel).mute(True if data[0] == '1' else False)
 
-    # fader - need to sort out log scale for console
     def fader(self, channel, data, **kw):
-        offset, channelct = self._console._mixmap[ (self._device, channel) ]
-        value = self.calc_db(db_abs=float(data[0]), limit_lower=-128.0, limit_upper=10.0)[1]
-        self._console.queue_command(self.sysex_send(0x0002, 0x001e, 0x001d, 0x2000 + offset, [value/256, value%256]))
+        """Set fader level.  Currently does NOT support db or relative"""
+        self._console.get(self._device, channel).fader_abs(float(data[0]))
+
+    def xfader_rel(self, channel, data, **kw):  # TEST
+        """Set fader level.  Currently does NOT support db or relative"""
+        self._console.get(self._device, channel).fader_rel(float(data[0]))
 
     # pan/balance depending on type
     # delay depending on type
 
-class dLive_MuteGroup(dLive_GenericDevice):
+# =============================================================================
+#
+# Mute Group
+#
+# =============================================================================
+
+class UDP_MuteGroup(UDP_GenericDevice):
     """ Implement NRPN Channel Control
         
         Note: Assignment are handled via channel types since MuteGroups span
@@ -512,11 +381,10 @@ class dLive_MuteGroup(dLive_GenericDevice):
     def __init__(self, console):
         self._console = console
         
-    def mute(self, channel, data):
-        self._check_range('mutegroup', channel)
-        value = 0x01 if data[0] == '1' else 0x00
-        self._console.queue_command(self.sysex_send(0x0001, 0x0019, 0x0018, 0x1038 + channel-1, [value]))
-            
+    def mute(self, channel, data, **kw):
+        """Enable or disable channel mute"""
+        self._console.get('mutegroup', channel).mute(True if data[0] == '1' else False)
+          
 
 # ---------------------------------------------------------------------------------------
 
@@ -626,7 +494,7 @@ class Application(object):
     def run(self):
 
         print "dLive OSC Gateway"
-        print "v 0.10  (c) 2016, Jay Hogg\n"
+        print "%s %s" % (VERSION, COPYRIGHT)
     
         # --- Parse command line options
         options = DataObject()
@@ -640,13 +508,17 @@ class Application(object):
         self._parser = URIExpander()
         self._parser.loadtags(config.get('tags', []))
 
+        self._gateway = None
         self._console = None
 
         try:
 
             print "Creating Console"
-            self._console = dLive_Console(config['console'])
+            self._console = ah_dLive(config['console'])
         
+            print "Creating UDP Gateway"
+            self._gateway = UDP_Gateway(config['gateway'], self._console)
+
             if True:
                 self.ListenMode()
             else:
@@ -656,6 +528,9 @@ class Application(object):
             pass
 
         finally:
+
+            if self._gateway:
+                self._gateway.close()
 
             if self._console:
                 self._console.close()
@@ -681,9 +556,9 @@ class Application(object):
             data, paths = self._parser.parse(uri)
             for path in paths:
                 print data, path
-                self._console.handle_message(path, data)
+                self._gateway.handle_message(path, data)
 
-        self._console.flush()
+        self._gateway.flush()
 
     def ListenMode(self):
     
@@ -703,18 +578,11 @@ class Application(object):
                     data, paths = self._parser.parse(uri)
                     for path in paths:
                         print data, path
-                        self._console.handle_message(path, data)
+                        self._gateway.handle_message(path, data)
                 except Exception, e:
-                    print e
+                    print traceback.format_exc()
                     
             self._console.flush()
-
-    def update_console(self):
-        for mc in self._console._midi:
-            #print mc
-            self._md.write_short(mc[0], mc[1], mc[2])
-            time.sleep(0.005)
-        self._console._midi = []    # FIXME
         
 if __name__ == '__main__':
     Application().run()
